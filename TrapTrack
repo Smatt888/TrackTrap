@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Tempo di Reazione</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Applica il font macchina da scrivere solo ai bottoni */
+        button {
+            font-family: 'Roboto Mono', monospace;
+        }
+    </style>
+</head>
+<body class="bg-black min-h-screen flex items-center justify-center p-4 text-center">
+
+    <!-- Main App Interface -->
+    <div id="app" class="w-full max-w-md px-8 py-4 rounded-3xl shadow-2xl flex flex-col items-center space-y-4 bg-gray-900 relative">
+
+        <!-- SVG Logo: A skeet target (Orange now) -->
+        <svg class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 opacity-10" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="100" cy="100" r="95" stroke="#f97316" stroke-width="4"/>
+            <circle cx="100" cy="100" r="75" stroke="#f97316" stroke-width="4"/>
+            <circle cx="100" cy="100" r="55" stroke="#f97316" stroke-width="4"/>
+            <circle cx="100" cy="100" r="35" stroke="#f97316" stroke-width="4"/>
+            <path d="M100 5V195M5 100H195" stroke="#f97316" stroke-width="4" stroke-linecap="round"/>
+        </svg>
+
+        <h1 class="text-2xl font-bold text-gray-100 relative z-10">TrapTrack</h1>
+
+        <!-- Timer Display (Updated) -->
+        <div class="relative w-full h-40 bg-gray-800 rounded-full flex flex-col items-center justify-center shadow-inner z-10">
+            <div id="timerDisplay" class="text-5xl font-bold text-gray-100 leading-none">0.000</div>
+            <div id="timerUnit" class="text-lg font-semibold text-gray-400 mt-2">s</div>
+        </div>
+
+        <!-- Stats Section (Modified for smaller size) -->
+        <div class="w-full grid grid-cols-2 gap-2 text-center relative z-10">
+            <div class="bg-gray-800 p-2 rounded-xl shadow-inner">
+                <p class="text-[10px] text-gray-400 font-bold uppercase">Sparati</p>
+                <div id="pigeonCountDisplay" class="text-xl font-bold text-gray-100 mt-1">0 / 25</div>
+            </div>
+            <div class="bg-gray-800 p-2 rounded-xl shadow-inner">
+                <p class="text-[10px] text-gray-400 font-bold uppercase">Rotti</p>
+                <div id="brokenPigeonsDisplay" class="text-xl font-bold text-gray-100 mt-1">0 / 0</div>
+            </div>
+            <div class="bg-gray-800 p-2 rounded-xl shadow-inner col-span-2">
+                <p class="text-[10px] text-gray-400 font-bold uppercase">Media</p>
+                <div id="averageTimeDisplay" class="text-xl font-bold text-gray-100 mt-1">0.000 s</div>
+            </div>
+        </div>
+        
+        <!-- Filter Control -->
+        <div class="w-full relative z-10 bg-gray-800 p-4 rounded-xl shadow-inner mt-4">
+            <label for="filterRange" class="text-xs text-gray-400 font-bold uppercase block mb-2">
+                Filtro (sensibilità microfono): <span id="filterValue" class="text-gray-100">0.10</span>
+            </label>
+            <input type="range" id="filterRange" min="0.01" max="0.5" step="0.01" value="0.10" class="w-full appearance-none bg-gray-700 rounded-full h-2 cursor-pointer">
+        </div>
+
+        <!-- Status Message -->
+        <div class="w-full h-12 flex items-center justify-center relative z-10">
+            <p id="statusMessage" class="text-base font-bold text-green-500">
+                Premi "Start" per iniziare.
+            </p>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="grid grid-cols-2 gap-4 w-full relative z-10">
+            <button id="startButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-full transition duration-300 transform active:scale-95 shadow-lg">
+                Start
+            </button>
+            <button id="missButton" class="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-full transition duration-300 transform active:scale-95 shadow-lg">
+                Mancato
+            </button>
+            <button id="resetButton" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-4 px-6 rounded-full transition duration-300 transform active:scale-95 shadow-lg">
+                Reset
+            </button>
+            <button id="endButton" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-full transition duration-300 transform active:scale-95 shadow-lg">
+                END
+            </button>
+        </div>
+
+        <!-- Custom Modal for Alerts -->
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+            <div class="bg-gray-900 p-8 rounded-xl shadow-xl max-w-sm w-full text-center space-y-4">
+                <p id="modalMessage" class="text-gray-100 text-lg"></p>
+                <button id="modalCloseButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Final Results Screen -->
+    <div id="finalResults" class="w-full max-w-md bg-gray-900 p-8 rounded-3xl shadow-2xl flex flex-col items-center space-y-8 relative z-10 hidden">
+        <h2 class="text-3xl font-bold text-gray-100">Sessione Completata!</h2>
+        <div class="w-full flex justify-around items-center">
+            <div class="text-center">
+                <p class="text-xs text-gray-400 font-bold uppercase">Piattelli rotti</p>
+                <div id="finalHits" class="text-3xl font-bold text-green-500 mt-1">0 / 25</div>
+            </div>
+            <div class="text-center">
+                <p class="text-xs text-gray-400 font-bold uppercase">Media tempi</p>
+                <div id="finalAverageTime" class="text-3xl font-bold text-gray-100 mt-1">0.000 s</div>
+            </div>
+        </div>
+        <!-- Riveduto il layout per un migliore allineamento dei pallini -->
+        <div id="pigeonIndicators" class="grid grid-cols-5 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-5 gap-2 w-full max-w-xs justify-items-center">
+            <!-- I pallini verranno generati qui dinamicamente -->
+        </div>
+        <button id="newSessionButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-full transition duration-300 transform active:scale-95 shadow-lg">
+            Inizia Nuova Sessione
+        </button>
+    </div>
+
+    <!-- New modal for microphone permission instructions -->
+    <div id="microphoneModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-900 p-8 rounded-xl shadow-xl max-w-sm w-full text-left space-y-4">
+            <h3 class="text-lg font-bold text-gray-100">Autorizzazione Microfono Negata</h3>
+            <p class="text-gray-300 text-sm">Sembra che l'accesso al microfono sia stato negato. Per utilizzare l'app, devi abilitarlo manualmente nelle impostazioni del tuo browser.</p>
+            <p class="text-gray-300 text-sm font-bold">Istruzioni:</p>
+            <ol class="list-decimal list-inside text-gray-300 text-sm space-y-2">
+                <li>Clicca sull'icona a forma di lucchetto (<span class="font-bold">🔒</span>) nella barra degli indirizzi del tuo browser.</li>
+                <li>Vai alle impostazioni del sito web.</li>
+                <li>Abilita il permesso per il microfono.</li>
+                <li>Ricarica la pagina.</li>
+            </ol>
+            <button id="microphoneModalCloseButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full">
+                Ho capito
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // References to DOM elements
+        const appScreen = document.getElementById('app');
+        const finalResultsScreen = document.getElementById('finalResults');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const statusMessage = document.getElementById('statusMessage');
+        const startButton = document.getElementById('startButton');
+        const endButton = document.getElementById('endButton');
+        const missButton = document.getElementById('missButton');
+        const resetButton = document.getElementById('resetButton');
+        const modal = document.getElementById('modal');
+        const modalMessage = document.getElementById('modalMessage');
+        const modalCloseButton = document.getElementById('modalCloseButton');
+        const microphoneModal = document.getElementById('microphoneModal');
+        const microphoneModalCloseButton = document.getElementById('microphoneModalCloseButton');
+        const pigeonCountDisplay = document.getElementById('pigeonCountDisplay');
+        const brokenPigeonsDisplay = document.getElementById('brokenPigeonsDisplay');
+        const averageTimeDisplay = document.getElementById('averageTimeDisplay');
+        const finalHitsDisplay = document.getElementById('finalHits');
+        const finalAverageTimeDisplay = document.getElementById('finalAverageTime');
+        const pigeonIndicatorsContainer = document.getElementById('pigeonIndicators');
+        const newSessionButton = document.getElementById('newSessionButton');
+        const filterInput = document.getElementById('filterRange');
+        const filterValueDisplay = document.getElementById('filterValue');
+
+        // State variables
+        let appState = 'idle'; // 'idle', 'armed', 'running', 'result_shown', 'finished'
+        let audioContext;
+        let analyser;
+        let microphone;
+        let scriptProcessor;
+        let timerId;
+        let startTime;
+        let sessionStartTime; // New variable to store the session start time
+        
+        let reactionTimes = [];
+        let sessionResults = []; // Stores times or 'miss' string
+        const TOTAL_PIGEONS = 25;
+        let soundThreshold = 0.10; // Changed from const to let to be adjustable
+
+        // Custom function to show a modal instead of alert()
+        function showModal(message) {
+            modalMessage.textContent = message;
+            modal.classList.remove('hidden');
+        }
+
+        // Function to update the UI based on the current state
+        function updateUI() {
+            switch (appState) {
+                case 'idle':
+                    appScreen.classList.remove('hidden');
+                    finalResultsScreen.classList.add('hidden');
+                    startButton.disabled = false;
+                    endButton.disabled = true;
+                    missButton.disabled = true;
+                    resetButton.disabled = false;
+                    statusMessage.textContent = "Premi 'Start' per iniziare.";
+                    timerDisplay.textContent = '0.000';
+                    break;
+                case 'armed':
+                    startButton.disabled = true;
+                    endButton.disabled = false;
+                    missButton.disabled = true; // Disable miss button during the shot
+                    resetButton.disabled = false;
+                    statusMessage.textContent = "VIA!"; // Updated status message
+                    break;
+                case 'running':
+                    startButton.disabled = true;
+                    endButton.disabled = false;
+                    missButton.disabled = true; // Disable miss button during the shot
+                    resetButton.disabled = false;
+                    statusMessage.textContent = "In ascolto dello sparo...";
+                    break;
+                case 'result_shown':
+                    appScreen.classList.remove('hidden');
+                    finalResultsScreen.classList.add('hidden');
+                    startButton.disabled = false;
+                    endButton.disabled = false;
+                    missButton.disabled = false; // Enable miss button to correct previous shot
+                    resetButton.disabled = false;
+                    statusMessage.textContent = "Pronto per il prossimo piattello.";
+                    break;
+                case 'finished':
+                    appScreen.classList.add('hidden');
+                    finalResultsScreen.classList.remove('hidden');
+                    startButton.disabled = true;
+                    endButton.disabled = true;
+                    missButton.disabled = true;
+                    resetButton.disabled = false;
+                    break;
+            }
+        }
+
+        // Function to update the pigeon indicators on the UI
+        function updatePigeonIndicators() {
+            pigeonIndicatorsContainer.innerHTML = '';
+            sessionResults.forEach(result => {
+                const indicator = document.createElement('div');
+                indicator.classList.add('w-5', 'h-5', 'rounded-full', 'shadow-md');
+                if (result === 'miss') {
+                    indicator.classList.add('bg-red-500');
+                } else {
+                    indicator.classList.add('bg-green-500');
+                }
+                pigeonIndicatorsContainer.appendChild(indicator);
+            });
+        }
+        
+        // Function to handle the end of a round (either hit or miss)
+        function endRound(result) {
+            // Stop timer and audio capture
+            clearInterval(timerId);
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.close();
+            }
+
+            // If the timer was running, calculate the time
+            if (appState === 'running') {
+                const finalTime = Date.now() - startTime;
+                reactionTimes.push(finalTime);
+                sessionResults.push(finalTime);
+                statusMessage.textContent = `Tempo di reazione: ${(finalTime / 1000).toFixed(3)} s`;
+            } else if (appState === 'armed' && result === 'miss') {
+                // This case should not be reachable now, but kept as a safeguard
+                sessionResults.push('miss');
+                statusMessage.textContent = "Mancato. Prossimo piattello...";
+            }
+            
+            updateStats();
+
+            // The app now transitions to the 'result_shown' state, regardless of the number of pigeons,
+            // allowing the user to press the 'Mancato' button.
+            appState = 'result_shown';
+            updateUI();
+        }
+
+        // Function to start the audio capture and processing
+        async function startListening() {
+            if (sessionResults.length >= TOTAL_PIGEONS) {
+                showModal("Hai raggiunto il massimo di 25 piattelli. Premi 'Termina Sessione' per vedere i risultati.");
+                return;
+            }
+            
+            if (sessionResults.length === 0) {
+                 sessionStartTime = new Date(); // Start a new session time
+            }
+
+            // Reset timer display only when a new round is started
+            timerDisplay.textContent = '0.000';
+            statusMessage.textContent = "Microfono richiesto...";
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(analyser);
+
+                scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
+                analyser.connect(scriptProcessor);
+                scriptProcessor.connect(audioContext.destination);
+
+                let isDetectionActive = true;
+                scriptProcessor.onaudioprocess = function(event) {
+                    if (!isDetectionActive) return;
+
+                    const buffer = event.inputBuffer.getChannelData(0);
+                    let sum = 0;
+                    for (let i = 0; i < buffer.length; i++) {
+                        sum += buffer[i] * buffer[i];
+                    }
+                    const rms = Math.sqrt(sum / buffer.length);
+                    
+                    if (rms > soundThreshold) { // Use the variable here
+                        isDetectionActive = false;
+                        if (appState === 'armed') {
+                            startTime = Date.now();
+                            timerId = setInterval(updateTimer, 10); // Update every 10 milliseconds for millisecond precision
+                            appState = 'running';
+                            updateUI();
+                        } else if (appState === 'running') {
+                            endRound('hit');
+                        }
+                        
+                        setTimeout(() => {
+                            isDetectionActive = true;
+                        }, 300);
+                    }
+                };
+                
+                appState = 'armed';
+                updateUI();
+                
+            } catch (err) {
+                console.error('Errore nell\'accesso al microfono: ' + err);
+                microphoneModal.classList.remove('hidden');
+                appState = 'idle';
+                updateUI();
+            }
+        }
+
+        // Function to update the timer display
+        function updateTimer() {
+            const elapsed = Date.now() - startTime;
+            timerDisplay.textContent = `${(elapsed / 1000).toFixed(3)}`;
+        }
+
+        function updateStats() {
+            pigeonCountDisplay.textContent = `${sessionResults.length} / ${TOTAL_PIGEONS}`;
+            brokenPigeonsDisplay.textContent = `${reactionTimes.length} / ${sessionResults.length}`;
+            if (reactionTimes.length > 0) {
+                const totalTime = reactionTimes.reduce((sum, time) => sum + time, 0);
+                const averageTime = totalTime / reactionTimes.length;
+                averageTimeDisplay.textContent = `${(averageTime / 1000).toFixed(3)} s`;
+            } else {
+                averageTimeDisplay.textContent = '0.000 s';
+            }
+        }
+
+        function showFinalResults() {
+            appState = 'finished';
+            updateUI();
+
+            const hits = reactionTimes.length;
+            const totalTime = reactionTimes.reduce((sum, time) => sum + time, 0);
+            const averageTime = hits > 0 ? totalTime / hits : 0;
+
+            finalHitsDisplay.textContent = `${hits} / ${TOTAL_PIGEONS}`;
+            finalAverageTimeDisplay.textContent = `${(averageTime / 1000).toFixed(3)} s`;
+
+            updatePigeonIndicators();
+        }
+        
+        function saveDataToFile() {
+            if (sessionResults.length === 0 || !sessionStartTime) {
+                showModal("Nessun dato da salvare. Inizia una sessione prima di terminare.");
+                return;
+            }
+
+            const dateString = sessionStartTime.toLocaleDateString('it-IT');
+            const timeString = sessionStartTime.toLocaleTimeString('it-IT').replace(/:/g, '-');
+
+            const totalTime = reactionTimes.reduce((sum, time) => sum + time, 0);
+            const averageTime = reactionTimes.length > 0 ? totalTime / reactionTimes.length : 0;
+
+            let fileContent = `Sessione di Allenamento Tiro al Volo\n`;
+            fileContent += `Data: ${dateString} ${timeString}\n`;
+            fileContent += `Numero di piattelli: ${sessionResults.length}\n`;
+            fileContent += `Piattelli rotti: ${reactionTimes.length}\n`;
+            fileContent += `Media dei tempi di reazione: ${averageTime.toFixed(3)}s\n\n`;
+            fileContent += `Risultati per singolo tiro:\n`;
+            
+            sessionResults.forEach((result, index) => {
+                if (result === 'miss') {
+                    fileContent += `Piattello ${index + 1}: Mancato\n`;
+                } else {
+                    fileContent += `Piattello ${index + 1}: ${(result / 1000).toFixed(3)}s (Rotto)\n`;
+                }
+            });
+
+            const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `tempi_reazione_${dateString}_${timeString}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- Event Listeners for Buttons ---
+        
+        startButton.addEventListener('click', () => {
+            if (sessionResults.length >= TOTAL_PIGEONS) {
+                 showModal("Hai raggiunto il massimo di 25 piattelli. Premi 'Termina Sessione' per vedere i risultati.");
+                 return;
+            }
+            if (appState === 'idle' || appState === 'finished' || appState === 'result_shown') {
+                startListening();
+            }
+        });
+
+        endButton.addEventListener('click', () => {
+            if (sessionResults.length > 0) {
+                 saveDataToFile();
+            }
+            if (appState === 'armed' || appState === 'running' || appState === 'result_shown') {
+                if (audioContext && audioContext.state !== 'closed') {
+                    audioContext.close();
+                }
+                clearInterval(timerId);
+                showFinalResults();
+            } else {
+                showModal("Nessuna sessione in corso da terminare.");
+            }
+        });
+        
+        missButton.addEventListener('click', () => {
+            if (appState === 'result_shown' && sessionResults.length > 0) {
+                // Corregge l'ultimo risultato se premuto dopo un tiro
+                const lastIndex = sessionResults.length - 1;
+                const lastResult = sessionResults[lastIndex];
+
+                if (typeof lastResult === 'number') {
+                    // Era un "rotto", lo cambiamo in "mancato"
+                    sessionResults[lastIndex] = 'miss';
+                    reactionTimes.pop(); // Rimuove il tempo di reazione
+                    updateStats();
+                    updatePigeonIndicators();
+                    showModal("L'ultimo piattello è stato corretto e segnato come 'mancato'.");
+                } else {
+                    showModal("L'ultimo piattello era già stato segnato come 'mancato'.");
+                }
+            } else {
+                showModal("Il pulsante 'Mancato' è attivo solo dopo un tiro.");
+            }
+        });
+
+
+        resetButton.addEventListener('click', () => {
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.close();
+            }
+            
+            reactionTimes = [];
+            sessionResults = [];
+            sessionStartTime = null; // Reset session start time
+            appState = 'idle';
+            updateUI();
+            averageTimeDisplay.textContent = '0.000 s';
+            pigeonCountDisplay.textContent = '0 / 25';
+            brokenPigeonsDisplay.textContent = '0 / 0';
+        });
+
+        newSessionButton.addEventListener('click', () => {
+            reactionTimes = [];
+            sessionResults = [];
+            sessionStartTime = null; // Reset session start time
+            appState = 'idle';
+            updateUI();
+            averageTimeDisplay.textContent = '0.000 s';
+            pigeonCountDisplay.textContent = '0 / 25';
+            brokenPigeonsDisplay.textContent = '0 / 0';
+        });
+
+        modalCloseButton.addEventListener('click', () => {
+            modal.classList.add('hidden');
+        });
+
+        microphoneModalCloseButton.addEventListener('click', () => {
+            microphoneModal.classList.add('hidden');
+        });
+
+        // Event listener for the filter range input
+        filterInput.addEventListener('input', (event) => {
+            soundThreshold = parseFloat(event.target.value);
+            filterValueDisplay.textContent = soundThreshold.toFixed(2);
+        });
+
+        // Initialize UI on load
+        updateUI();
+    </script>
+</body>
+</html>
